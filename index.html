@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Respiratory Illness Forecast</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<style>
+  :root { --accent: #1A6FA8; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: #F8F9FA;
+    color: #000;
+  }
+
+  .navbar-custom {
+    background: #1A1A2E;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .navbar-custom h1 { color: #fff; margin: 0; font-size: 18px; font-weight: 500; }
+  .navbar-custom p  { color: #fff; margin: 0; font-size: 13px; }
+  .navbar-right { margin-left: auto; color: #fff; font-size: 12px; }
+
+  .tab-strip {
+    background: #fff;
+    border-bottom: 1px solid #E4E6EB;
+    padding: 12px 24px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .disease-btn {
+    font: inherit;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    background: #ECEDF0;
+    color: #000;
+    transition: background 0.15s, color 0.15s;
+  }
+  .disease-btn:hover { background: #DDE0E6; }
+  .disease-btn:focus-visible { outline: 2px solid #1A6FA8; outline-offset: 2px; }
+  .disease-btn[aria-pressed="true"] { color: #fff; }
+
+  .main-content { padding: 16px 24px 32px; max-width: 1200px; margin: 0 auto; }
+
+  .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+  .stat-card { background: #fff; border: 1px solid #E4E6EB; border-radius: 10px; padding: 14px 16px; }
+  .stat-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #000;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+  }
+  .stat-value { font-size: 24px; font-weight: 600; line-height: 1.1; }
+  .stat-note  { font-size: 12px; color: #000; margin-top: 4px; }
+
+  .plot-card {
+    background: #fff;
+    border: 1px solid #E4E6EB;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .plot-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .plot-title { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+  .plot-sub   { font-size: 12px; color: #000; margin-bottom: 12px; line-height: 1.6; }
+  .range-strip { display: flex; gap: 4px; flex-wrap: wrap; }
+  .range-btn {
+    font: inherit;
+    border: 1px solid #E4E6EB;
+    background: #fff;
+    color: #000;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .range-btn:hover { background: #F3F4F6; }
+  .range-btn[aria-pressed="true"] { background: #1A1A2E; color: #fff; border-color: #1A1A2E; }
+  #chart { height: 340px; }
+
+  .bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .info-card { background: #fff; border: 1px solid #E4E6EB; border-radius: 10px; padding: 18px 20px; }
+  .info-card h2 {
+    font-size: 13px;
+    font-weight: 600;
+    margin: 0 0 4px;
+    color: #000;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .card-sub { font-size: 12px; color: #000; margin: 0 0 14px; line-height: 1.6; }
+
+  .fc-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .fc-table th {
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 2px solid #E4E6EB;
+    font-size: 11px;
+    font-weight: 600;
+    color: #000;
+    text-transform: uppercase;
+  }
+  .fc-table td { padding: 8px; border-bottom: 1px solid #F3F4F6; color: #000; }
+  .fc-table tr:last-child td { border-bottom: none; }
+  .ci-bar-wrap { background: #F3F4F6; border-radius: 4px; height: 6px; position: relative; margin-top: 4px; }
+  .ci-bar-fill { background: var(--accent); border-radius: 4px; height: 6px; position: absolute; opacity: 0.35; }
+
+  .interp-block p { font-size: 13px; line-height: 1.7; margin: 0 0 10px; color: #000; }
+  .interp-block p:last-child { margin-bottom: 0; }
+  .headline { font-size: 14px !important; font-weight: 500; display: flex; gap: 8px; align-items: flex-start; }
+  .trend-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    margin-top: 2px;
+  }
+  .footnote { font-size: 11px; color: #000; line-height: 1.6; }
+  .footer { margin-top: 20px; font-size: 11px; color: #000; line-height: 1.6; }
+
+  @media (max-width: 820px) {
+    .stat-grid, .bottom-grid { grid-template-columns: 1fr; }
+    .main-content { padding: 12px 14px 24px; }
+    .navbar-custom, .tab-strip { padding-left: 14px; padding-right: 14px; }
+  }
+  @media (max-width: 480px) { .stat-value { font-size: 20px; } }
+</style>
+</head>
+<body>
+
+<div class="navbar-custom">
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M3 12L7 4L12 16L16 8L19 12L21 12" stroke="#6BAED6" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  <div>
+    <h1>Respiratory Illness Forecast</h1>
+    <p>Southwest District Health | Weekly emergency room visits</p>
+  </div>
+  <div class="navbar-right" id="updatedText"></div>
+</div>
+
+<div class="tab-strip" id="tabStrip" aria-label="Choose a disease"></div>
+
+<div class="main-content">
+  <div class="stat-grid" id="statStrip"></div>
+
+  <div class="plot-card">
+    <div class="plot-head">
+      <div>
+        <div class="plot-title" id="plotTitle"></div>
+        <div class="plot-sub">Each point is one week. The grey line is what actually happened.
+        The coloured line is the forecast, and the shaded band is the range it could fall in.</div>
+      </div>
+      <div class="range-strip">
+        <button type="button" class="range-btn" data-range="3m">3 months</button>
+        <button type="button" class="range-btn" data-range="6m" aria-pressed="true">6 months</button>
+        <button type="button" class="range-btn" data-range="1y">1 year</button>
+        <button type="button" class="range-btn" data-range="all">All</button>
+      </div>
+    </div>
+    <div id="chart"></div>
+  </div>
+
+  <div class="bottom-grid">
+    <div class="info-card">
+      <h2>Next 4 weeks</h2>
+      <p class="card-sub">Our best estimate for each week, and the range it could fall in.</p>
+      <div id="fcTable"></div>
+    </div>
+    <div class="info-card">
+      <h2>What the forecast shows</h2>
+      <p class="card-sub">In plain terms, here is what these numbers mean.</p>
+      <div class="interp-block" id="interp"></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Forecasts come from statistical models that look at recent trends and past seasons.
+    The most recent week may be revised as more reports come in. This page is for general
+    awareness and is not a medical diagnosis.
+  </div>
+</div>
+
+<script>
+const P = {"defaultDisease":"flu","diseases":[{"id":"flu","short":"Flu","color":"#1A6FA8","name":"the flu","formal":"influenza-like illness (ILI)"},{"id":"rsv","short":"RSV","color":"#0F6E56","name":"RSV","formal":"RSV-like illness"},{"id":"covid","short":"COVID-19","color":"#534AB7","name":"COVID-19","formal":"COVID-like illness (CLI)"}],"forecast":{"flu":{"obs":{"d":["2023-01-15","2023-01-22","2023-01-29","2023-02-05","2023-02-12","2023-02-19","2023-02-26","2023-03-05","2023-03-12","2023-03-19","2023-03-26","2023-04-02","2023-04-09","2023-04-16","2023-04-23","2023-04-30","2023-05-07","2023-05-14","2023-05-21","2023-05-28","2023-06-04","2023-06-11","2023-06-18","2023-06-25","2023-07-02","2023-07-09","2023-07-16","2023-07-23","2023-07-30","2023-08-06","2023-08-13","2023-08-20","2023-08-27","2023-09-03","2023-09-10","2023-09-17","2023-09-24","2023-10-01","2023-10-08","2023-10-15","2023-10-22","2023-10-29","2023-11-05","2023-11-12","2023-11-19","2023-11-26","2023-12-03","2023-12-10","2023-12-17","2023-12-24","2023-12-31","2024-01-07","2024-01-14","2024-01-21","2024-01-28","2024-02-04","2024-02-11","2024-02-18","2024-02-25","2024-03-03","2024-03-10","2024-03-17","2024-03-24","2024-03-31","2024-04-07","2024-04-14","2024-04-21","2024-04-28","2024-05-05","2024-05-12","2024-05-19","2024-05-26","2024-06-02","2024-06-09","2024-06-16","2024-06-23","2024-06-30","2024-07-07","2024-07-14","2024-07-21","2024-07-28","2024-08-04","2024-08-11","2024-08-18","2024-08-25","2024-09-01","2024-09-08","2024-09-15","2024-09-22","2024-09-29","2024-10-06","2024-10-13","2024-10-20","2024-10-27","2024-11-03","2024-11-10","2024-11-17","2024-11-24","2024-12-01","2024-12-08","2024-12-15","2024-12-22","2024-12-29","2025-01-05","2025-01-12","2025-01-19","2025-01-26","2025-02-02","2025-02-09","2025-02-16","2025-02-23","2025-03-02","2025-03-09","2025-03-16","2025-03-23","2025-03-30","2025-04-06","2025-04-13","2025-04-20","2025-04-27","2025-05-04","2025-05-11","2025-05-18","2025-05-25","2025-06-01","2025-06-08","2025-06-15","2025-06-22","2025-06-29","2025-07-06","2025-07-13","2025-07-20","2025-07-27","2025-08-03","2025-08-10","2025-08-17","2025-08-24","2025-08-31","2025-09-07","2025-09-14","2025-09-21","2025-09-28","2025-10-05","2025-10-12","2025-10-19","2025-10-26","2025-11-02","2025-11-09","2025-11-16","2025-11-23","2025-11-30","2025-12-07","2025-12-14","2025-12-21","2025-12-28","2026-01-04","2026-01-11","2026-01-18","2026-01-25","2026-02-01","2026-02-08","2026-02-15","2026-02-22","2026-03-01","2026-03-08","2026-03-15","2026-03-22","2026-03-29","2026-04-05","2026-04-12","2026-04-19","2026-04-26","2026-05-03","2026-05-10","2026-05-17","2026-05-24","2026-05-31","2026-06-07","2026-06-14","2026-06-21","2026-06-28","2026-07-05","2026-07-12","2026-07-19","2026-07-26","2026-08-02","2026-08-09","2026-08-16","2026-08-23","2026-08-30"],"y":[44,42,31,34,34,43,48,39,30,41,42,29,47,28,42,34,30,30,24,29,23,8,17,23,15,17,14,17,12,21,13,24,14,30,56,65,44,38,56,49,54,59,58,86,60,83,132,173,230,315,242,179,171,174,217,152,216,243,172,162,161,131,98,81,99,92,81,81,95,65,77,63,44,42,43,46,38,42,35,30,30,33,24,38,56,59,71,51,53,48,53,69,75,85,104,92,169,178,179,273,399,542,429,316,288,290,393,358,325,348,273,252,275,189,152,135,107,113,121,132,81,74,70,57,65,63,61,37,26,35,31,30,39,35,47,50,68,50,50,44,64,57,59,57,62,63,84,86,105,94,121,192,371,575,473,333,340,293,296,346,348,339,310,260,265,185,127,83,83,85,79,74,71,70,60,58,40,47,36,39,31,36,41,11,19,32,19,24,48,57]},"fc":{"d":["2026-09-06","2026-09-13","2026-09-20","2026-09-27"],"mean":[64.7,62.3,63.3,61.6],"lo":[43.6,37.6,34.3,30.3],"hi":[88.9,91.4,98.5,100.4]},"lastObs":57,"lastEnd":"2026-08-30","yrAgo":50,"chgYrAgo":14,"yrWord":"up","fcMean":63,"fcWord":"up","trend":"Stable-up"},"rsv":{"obs":{"d":["2023-01-15","2023-01-22","2023-01-29","2023-02-05","2023-02-12","2023-02-19","2023-02-26","2023-03-05","2023-03-12","2023-03-19","2023-03-26","2023-04-02","2023-04-09","2023-04-16","2023-04-23","2023-04-30","2023-05-07","2023-05-14","2023-05-21","2023-05-28","2023-06-04","2023-06-11","2023-06-18","2023-06-25","2023-07-02","2023-07-09","2023-07-16","2023-07-23","2023-07-30","2023-08-06","2023-08-13","2023-08-20","2023-08-27","2023-09-03","2023-09-10","2023-09-17","2023-09-24","2023-10-01","2023-10-08","2023-10-15","2023-10-22","2023-10-29","2023-11-05","2023-11-12","2023-11-19","2023-11-26","2023-12-03","2023-12-10","2023-12-17","2023-12-24","2023-12-31","2024-01-07","2024-01-14","2024-01-21","2024-01-28","2024-02-04","2024-02-11","2024-02-18","2024-02-25","2024-03-03","2024-03-10","2024-03-17","2024-03-24","2024-03-31","2024-04-07","2024-04-14","2024-04-21","2024-04-28","2024-05-05","2024-05-12","2024-05-19","2024-05-26","2024-06-02","2024-06-09","2024-06-16","2024-06-23","2024-06-30","2024-07-07","2024-07-14","2024-07-21","2024-07-28","2024-08-04","2024-08-11","2024-08-18","2024-08-25","2024-09-01","2024-09-08","2024-09-15","2024-09-22","2024-09-29","2024-10-06","2024-10-13","2024-10-20","2024-10-27","2024-11-03","2024-11-10","2024-11-17","2024-11-24","2024-12-01","2024-12-08","2024-12-15","2024-12-22","2024-12-29","2025-01-05","2025-01-12","2025-01-19","2025-01-26","2025-02-02","2025-02-09","2025-02-16","2025-02-23","2025-03-02","2025-03-09","2025-03-16","2025-03-23","2025-03-30","2025-04-06","2025-04-13","2025-04-20","2025-04-27","2025-05-04","2025-05-11","2025-05-18","2025-05-25","2025-06-01","2025-06-08","2025-06-15","2025-06-22","2025-06-29","2025-07-06","2025-07-13","2025-07-20","2025-07-27","2025-08-03","2025-08-10","2025-08-17","2025-08-24","2025-08-31","2025-09-07","2025-09-14","2025-09-21","2025-09-28","2025-10-05","2025-10-12","2025-10-19","2025-10-26","2025-11-02","2025-11-09","2025-11-16","2025-11-23","2025-11-30","2025-12-07","2025-12-14","2025-12-21","2025-12-28","2026-01-04","2026-01-11","2026-01-18","2026-01-25","2026-02-01","2026-02-08","2026-02-15","2026-02-22","2026-03-01","2026-03-08","2026-03-15","2026-03-22","2026-03-29","2026-04-05","2026-04-12","2026-04-19","2026-04-26","2026-05-03","2026-05-10","2026-05-17","2026-05-24","2026-05-31","2026-06-07","2026-06-14","2026-06-21","2026-06-28","2026-07-05","2026-07-12","2026-07-19","2026-07-26","2026-08-02","2026-08-09","2026-08-16","2026-08-23","2026-08-30"],"y":[13,3,3,5,6,9,1,2,3,0,0,0,0,0,1,1,0,1,1,0,0,0,0,0,0,0,0,1,0,1,0,0,1,0,0,0,0,0,2,2,0,4,0,3,2,8,18,16,27,26,47,33,30,39,29,28,32,18,21,10,7,7,7,5,6,2,1,1,0,0,2,0,1,0,0,0,0,0,0,0,0,0,0,0,0,2,2,3,4,1,5,3,1,3,3,3,6,8,2,7,8,14,22,17,22,36,30,38,29,40,35,32,23,14,12,3,4,2,0,0,0,2,1,1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,3,1,2,1,3,2,1,2,3,3,3,9,6,7,12,9,7,18,13,19,21,16,30,22,21,9,7,5,6,5,5,2,0,0,0,0,0,0,1,1,0,1,0,0,0,1,1,0]},"fc":{"d":["2026-09-06","2026-09-13","2026-09-20","2026-09-27"],"mean":[0.4,0.5,0.6,0.5],"lo":[0,0,0,0],"hi":[1.1,1.4,1.7,1.8]},"lastObs":0,"lastEnd":"2026-08-30","yrAgo":0,"chgYrAgo":null,"yrWord":"no data","fcMean":0.5,"fcWord":"no data","trend":"Stable"},"covid":{"obs":{"d":["2023-01-15","2023-01-22","2023-01-29","2023-02-05","2023-02-12","2023-02-19","2023-02-26","2023-03-05","2023-03-12","2023-03-19","2023-03-26","2023-04-02","2023-04-09","2023-04-16","2023-04-23","2023-04-30","2023-05-07","2023-05-14","2023-05-21","2023-05-28","2023-06-04","2023-06-11","2023-06-18","2023-06-25","2023-07-02","2023-07-09","2023-07-16","2023-07-23","2023-07-30","2023-08-06","2023-08-13","2023-08-20","2023-08-27","2023-09-03","2023-09-10","2023-09-17","2023-09-24","2023-10-01","2023-10-08","2023-10-15","2023-10-22","2023-10-29","2023-11-05","2023-11-12","2023-11-19","2023-11-26","2023-12-03","2023-12-10","2023-12-17","2023-12-24","2023-12-31","2024-01-07","2024-01-14","2024-01-21","2024-01-28","2024-02-04","2024-02-11","2024-02-18","2024-02-25","2024-03-03","2024-03-10","2024-03-17","2024-03-24","2024-03-31","2024-04-07","2024-04-14","2024-04-21","2024-04-28","2024-05-05","2024-05-12","2024-05-19","2024-05-26","2024-06-02","2024-06-09","2024-06-16","2024-06-23","2024-06-30","2024-07-07","2024-07-14","2024-07-21","2024-07-28","2024-08-04","2024-08-11","2024-08-18","2024-08-25","2024-09-01","2024-09-08","2024-09-15","2024-09-22","2024-09-29","2024-10-06","2024-10-13","2024-10-20","2024-10-27","2024-11-03","2024-11-10","2024-11-17","2024-11-24","2024-12-01","2024-12-08","2024-12-15","2024-12-22","2024-12-29","2025-01-05","2025-01-12","2025-01-19","2025-01-26","2025-02-02","2025-02-09","2025-02-16","2025-02-23","2025-03-02","2025-03-09","2025-03-16","2025-03-23","2025-03-30","2025-04-06","2025-04-13","2025-04-20","2025-04-27","2025-05-04","2025-05-11","2025-05-18","2025-05-25","2025-06-01","2025-06-08","2025-06-15","2025-06-22","2025-06-29","2025-07-06","2025-07-13","2025-07-20","2025-07-27","2025-08-03","2025-08-10","2025-08-17","2025-08-24","2025-08-31","2025-09-07","2025-09-14","2025-09-21","2025-09-28","2025-10-05","2025-10-12","2025-10-19","2025-10-26","2025-11-02","2025-11-09","2025-11-16","2025-11-23","2025-11-30","2025-12-07","2025-12-14","2025-12-21","2025-12-28","2026-01-04","2026-01-11","2026-01-18","2026-01-25","2026-02-01","2026-02-08","2026-02-15","2026-02-22","2026-03-01","2026-03-08","2026-03-15","2026-03-22","2026-03-29","2026-04-05","2026-04-12","2026-04-19","2026-04-26","2026-05-03","2026-05-10","2026-05-17","2026-05-24","2026-05-31","2026-06-07","2026-06-14","2026-06-21","2026-06-28","2026-07-05","2026-07-12","2026-07-19","2026-07-26","2026-08-02","2026-08-09","2026-08-16","2026-08-23","2026-08-30"],"y":[59,60,60,73,84,98,92,95,62,81,74,49,64,40,59,41,34,41,30,31,27,13,21,13,18,26,27,30,25,43,60,77,92,94,149,116,112,83,114,94,105,100,107,149,149,161,176,212,201,240,236,154,119,103,128,97,128,134,105,81,72,79,70,53,80,74,68,81,87,70,72,68,67,53,62,68,89,84,96,100,116,131,117,138,148,164,112,115,74,75,55,52,63,72,89,74,95,96,114,137,148,187,186,136,140,124,162,191,175,169,159,170,169,117,102,126,114,93,121,122,95,96,76,60,62,76,54,57,48,40,36,37,51,61,90,98,143,108,123,68,103,78,90,68,78,69,83,73,71,98,92,111,130,174,140,97,128,109,119,125,144,145,125,117,119,84,83,74,72,57,84,58,59,42,60,58,38,33,33,21,23,41,27,23,27,35,28,40,54,62]},"fc":{"d":["2026-09-06","2026-09-13","2026-09-20","2026-09-27"],"mean":[63.7,62.2,63.9,63.4],"lo":[47.2,40.3,37.4,32.4],"hi":[82,87.4,95.4,101.6]},"lastObs":62,"lastEnd":"2026-08-30","yrAgo":108,"chgYrAgo":-42.6,"yrWord":"down","fcMean":63.3,"fcWord":"about the same","trend":"Stable"}},"activity":{"flu":"Current flu activity in the region is <b>minimal<\/b>.","rsv":"Current RSV activity in the region is <b>minimal<\/b>.","covid":"Current COVID-19 activity in the region is <b>minimal<\/b>."}};
+
+const COLORS = { obs: "#444444", up: "#A32D2D", down: "#3B6D11", flat: "#000000" };
+const DIS = {};
+P.diseases.forEach(d => { DIS[d.id] = d; });
+
+/* ---------- Helpers ---------- */
+function fmtN(x) {
+  return (x === null || x === undefined || !isFinite(x))
+    ? "\u2014" : Math.round(x).toLocaleString("en-US");
+}
+function parseDay(s) {
+  const [y, m, d] = s.split("-").map(Number);
+  return Date.UTC(y, m - 1, d);
+}
+function dayStr(ms) {
+  const t = new Date(ms), p = n => String(n).padStart(2, "0");
+  return t.getUTCFullYear() + "-" + p(t.getUTCMonth() + 1) + "-" + p(t.getUTCDate()) +
+         " " + p(t.getUTCHours()) + ":" + p(t.getUTCMinutes());
+}
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function fmtDay(s, withYear) {
+  const t = new Date(parseDay(s));
+  const base = MONTHS[t.getUTCMonth()] + " " + String(t.getUTCDate()).padStart(2, "0");
+  return withYear ? base + ", " + t.getUTCFullYear() : base;
+}
+function hexA(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return "rgba(" + (n >> 16) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+}
+function glyph(word) {
+  if (word === "up")   return { arrow: "\u25B2", col: COLORS.up };
+  if (word === "down") return { arrow: "\u25BC", col: COLORS.down };
+  if (word === "about the same") return { arrow: "\u25AC", col: COLORS.flat };
+  return { arrow: "", col: COLORS.flat };
+}
+
+/* ---------- State ---------- */
+const params = new URLSearchParams(window.location.search);
+const ask = (params.get("disease") || "").toLowerCase();
+let current = DIS[ask] ? ask : P.defaultDisease;
+let range = "6m";
+
+/* ---------- Disease buttons ---------- */
+const strip = document.getElementById("tabStrip");
+P.diseases.forEach(d => {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "disease-btn";
+  b.textContent = d.short;
+  b.dataset.id = d.id;
+  b.addEventListener("click", () => { current = d.id; render(); });
+  strip.appendChild(b);
+});
+
+/* ---------- Stat cards ---------- */
+function statCard(label, value, note, col) {
+  return '<div class="stat-card"><div class="stat-label">' + label + "</div>" +
+         '<div class="stat-value" style="color:' + (col || "#000") + '">' + value + "</div>" +
+         '<div class="stat-note">' + note + "</div></div>";
+}
+
+function renderStats(F) {
+  const gf = glyph(F.fcWord);
+  const yrNote = (F.chgYrAgo === null)
+    ? "No data for this week a year ago"
+    : "This year is " + F.yrWord +
+      (F.yrWord !== "about the same" ? " " + Math.abs(Math.round(F.chgYrAgo)) + "%" : "");
+
+  document.getElementById("statStrip").innerHTML =
+    statCard("Last week", fmtN(F.lastObs), "ER visits, week ending " + fmtDay(F.lastEnd)) +
+    statCard("Same week last year", fmtN(F.yrAgo), yrNote) +
+    statCard("4-week outlook",
+             F.fcMean === null ? "\u2014" : gf.arrow + " " + fmtN(F.fcMean),
+             "Average visits per week expected over the next month", gf.col);
+}
+
+/* ---------- Chart ---------- */
+const RANGE_DAYS = { "3m": 90, "6m": 180, "1y": 365, "all": null };
+
+function renderChart(F) {
+  const col  = DIS[current].color;
+  const days = RANGE_DAYS[range];
+  const cutoff = days === null ? -Infinity : parseDay(F.lastEnd) - days * 864e5;
+
+  const ox = [], oy = [], ot = [];
+  F.obs.d.forEach((d, i) => {
+    if (parseDay(d) >= cutoff) {
+      ox.push(d);
+      oy.push(F.obs.y[i]);
+      ot.push("Week ending " + fmtDay(d, true) + "<br>" + fmtN(F.obs.y[i]) + " visits");
+    }
+  });
+
+  // Join the forecast to the last observed point so there's no gap
+  const lx = [F.lastEnd].concat(F.fc.d);
+  const lm = [F.lastObs].concat(F.fc.mean);
+  const ll = [F.lastObs].concat(F.fc.lo.map(v => v === null ? 0 : v));
+  const lh = [F.lastObs].concat(F.fc.hi);
+  const ft = F.fc.d.map((d, i) =>
+    "Week ending " + fmtDay(d, true) +
+    "<br>About " + fmtN(F.fc.mean[i]) + " visits expected" +
+    "<br>Could be " + fmtN(F.fc.lo[i]) + " to " + fmtN(F.fc.hi[i]));
+
+  const fcStart = parseDay(F.fc.d[0]);
+  const fcEnd   = parseDay(F.fc.d[F.fc.d.length - 1]);
+  const yTop = Math.max(...oy.concat(F.fc.hi).filter(v => v !== null && isFinite(v)), 1);
+  const xStart = ox.length ? parseDay(ox[0]) - 3 * 864e5 : fcStart - 30 * 864e5;
+
+  const traces = [
+    { x: lx, y: ll, type: "scatter", mode: "lines", line: { width: 0 },
+      hoverinfo: "skip", showlegend: false },
+    { x: lx, y: lh, type: "scatter", mode: "lines", line: { width: 0 },
+      fill: "tonexty", fillcolor: hexA(col, 0.16), hoverinfo: "skip", showlegend: false },
+    { x: ox, y: oy, type: "scatter", mode: "lines+markers",
+      line: { color: COLORS.obs, width: 1.6 },
+      marker: { color: "rgba(68,68,68,0.6)", size: 6 },
+      hovertext: ot, hovertemplate: "%{hovertext}<extra></extra>", showlegend: false },
+    { x: lx, y: lm, type: "scatter", mode: "lines",
+      line: { color: col, width: 3 }, hoverinfo: "skip", showlegend: false },
+    { x: F.fc.d, y: F.fc.mean, type: "scatter", mode: "markers",
+      marker: { color: col, size: 8, opacity: 0.9 },
+      hovertext: ft, hovertemplate: "%{hovertext}<extra></extra>", showlegend: false }
+  ];
+
+  // Fewer date labels on narrow screens so they don't collide
+  const narrow = document.getElementById("chart").clientWidth < 520;
+  const tick = { "3m":  { dtick: (narrow ? 28 : 14) * 864e5, fmt: "%b %d" },
+                 "6m":  { dtick: narrow ? "M2" : "M1", fmt: "%b %Y" },
+                 "1y":  { dtick: narrow ? "M3" : "M2", fmt: "%b %Y" },
+                 "all": { dtick: narrow ? "M6" : "M3", fmt: "%b %Y" } }[range];
+
+  const layout = {
+    margin: { l: 55, r: 16, t: 10, b: 60 },
+    paper_bgcolor: "#fff",
+    plot_bgcolor: "#fff",
+    font: { family: "-apple-system, 'Segoe UI', Roboto, Arial, sans-serif", size: 12, color: "#000" },
+    hovermode: "closest",
+    hoverlabel: { bgcolor: "#ffffff", bordercolor: col, font: { size: 12, color: "#000" } },
+    xaxis: {
+      type: "date",
+      range: [dayStr(xStart), dayStr(fcEnd + 5 * 864e5)],
+      dtick: tick.dtick,
+      tickformat: tick.fmt,
+      tickangle: -30,
+      tickfont: { color: "#000" },
+      showgrid: false,
+      fixedrange: true
+    },
+    yaxis: {
+      title: { text: "Visits per week", font: { size: 12, color: "#000" } },
+      range: [0, yTop * 1.08],
+      tickformat: ",d",
+      tickfont: { color: "#000" },
+      gridcolor: "#EDEEF1",
+      zeroline: false,
+      fixedrange: true
+    },
+    shapes: [{
+      type: "rect", xref: "x", yref: "paper",
+      x0: dayStr(fcStart - 3.5 * 864e5), x1: dayStr(fcEnd + 5 * 864e5),
+      y0: 0, y1: 1, fillcolor: "rgba(243,244,246,0.7)", line: { width: 0 }, layer: "below"
+    }],
+    annotations: [{
+      x: dayStr(fcStart - 2 * 864e5), y: yTop * 0.97, xref: "x", yref: "y",
+      xanchor: "left", showarrow: false, text: "Forecast \u2192",
+      font: { size: 11, color: "#000" }
+    }]
+  };
+
+  Plotly.react("chart", traces, layout, { displayModeBar: false, responsive: true });
+}
+
+/* ---------- Next 4 weeks table ---------- */
+function renderTable(F) {
+  let rows = "";
+  F.fc.d.forEach((d, i) => {
+    const lo = F.fc.lo[i], hi = F.fc.hi[i];
+    const wid = (hi !== null && hi > 0) ? Math.round((hi - Math.max(lo || 0, 0)) / hi * 60) : 30;
+    rows += "<tr><td>" + fmtDay(d) + "</td>" +
+            '<td style="font-weight:600">' + fmtN(F.fc.mean[i]) + "</td>" +
+            "<td><div>" + fmtN(lo) + " to " + fmtN(hi) + "</div>" +
+            '<div class="ci-bar-wrap"><div class="ci-bar-fill" style="width:' +
+            Math.min(wid, 100) + 'px"></div></div></td></tr>';
+  });
+  document.getElementById("fcTable").innerHTML =
+    '<table class="fc-table"><thead><tr><th>Week ending</th><th>Expected visits</th>' +
+    "<th>Could be</th></tr></thead><tbody>" + rows + "</tbody></table>" +
+    '<p class="footnote" style="margin-top:12px;">These are estimates, not certainties. ' +
+    "The \u201ccould be\u201d column shows the range we would not be surprised to see.</p>";
+}
+
+/* ---------- Plain-language interpretation ---------- */
+function renderInterp(F) {
+  const name = DIS[current].name;
+  const chip = {
+    "Increasing": { txt: "RISING",  bg: "#FCEBEB", fg: COLORS.up },
+    "Decreasing": { txt: "FALLING", bg: "#EAF3DE", fg: COLORS.down }
+  }[F.trend] || { txt: "STEADY", bg: "#F3F4F6", fg: "#000" };
+
+  const pre = "Emergency room visits for " + name + " are expected to ";
+  const headline = {
+    "Increasing":  pre + "<b>go up</b> over the next month.",
+    "Decreasing":  pre + "<b>go down</b> over the next month.",
+    "Stable-up":   pre + "<b>stay about the same</b>, with a slight rise.",
+    "Stable-down": pre + "<b>stay about the same</b>, with a slight drop."
+  }[F.trend] || pre + "<b>stay about the same</b> over the next month.";
+
+  const detail = {
+    "Increasing":  "The forecast points to a clear rise in visits over the coming weeks.",
+    "Decreasing":  "The forecast points to a clear drop in visits over the coming weeks.",
+    "Stable-up":   "The forecast is close to flat, with a small upward lean.",
+    "Stable-down": "The forecast is close to flat, with a small downward lean."
+  }[F.trend] || "The forecast is flat: no meaningful change expected in either direction.";
+
+  const act = P.activity[current];
+
+  document.getElementById("interp").innerHTML =
+    '<p class="headline"><span class="trend-chip" style="background:' + chip.bg +
+    ";color:" + chip.fg + '">' + chip.txt + "</span><span>" + headline + "</span></p>" +
+    "<p>" + detail + "</p>" +
+    (act ? "<p>" + act + "</p>" : "") +
+    '<p class="footnote" style="margin-top:12px;"><b>Where this comes from:</b> weekly ' +
+    "counts of emergency room visits for " + DIS[current].formal + " across the six " +
+    "counties served by Southwest District Health.</p>";
+}
+
+/* ---------- Draw everything for the chosen disease ---------- */
+function render() {
+  const F = P.forecast[current];
+  if (!F) return;
+
+  strip.querySelectorAll(".disease-btn").forEach(b => {
+    const on = b.dataset.id === current;
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    b.style.background = on ? DIS[b.dataset.id].color : "";
+  });
+  document.documentElement.style.setProperty("--accent", DIS[current].color);
+
+  document.getElementById("updatedText").textContent =
+    "Data through week ending " + fmtDay(F.lastEnd, true);
+  document.getElementById("plotTitle").textContent =
+    DIS[current].short + ": emergency room visits and what we expect next";
+
+  renderStats(F);
+  renderChart(F);
+  renderTable(F);
+  renderInterp(F);
+}
+
+document.querySelectorAll(".range-btn").forEach(b => {
+  b.addEventListener("click", () => {
+    range = b.dataset.range;
+    document.querySelectorAll(".range-btn").forEach(x =>
+      x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+    renderChart(P.forecast[current]);
+  });
+});
+
+render();
+</script>
+</body>
+</html>
