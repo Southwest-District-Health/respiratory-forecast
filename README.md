@@ -47,7 +47,6 @@ they use, are kept on district machines and are not part of this repo.
 
 ## Contact
 
-Maintained by Lekshmi Rita-Venugopal, MD, MPH, Epidemiologist Program Manager,
+Maintained by Lekshmi Rita-Venugopal, Epidemiologist Program Manager,
 Southwest District Health.
 
-This page is for general awareness and is not a medical diagnosis.
