@@ -4,6 +4,15 @@ How to update the forecast page each Monday, September through May.
 
 Project folder: `Documents\Respiratory forecast` (in R, `~/Respiratory forecast`).
 
+The project directory and folder names are based on Lekshmi's local device.
+Please use your own folder names and update these paths to match:
+
+| Script | What to change |
+|---|---|
+| `build_forecast.R` | `PROJECT_DIR`, `FORECAST_RDS`, and `LEVELS_LOG` near the top |
+| `merge_ww_essence.R` | The `~/Data/Essence` paths for the three ESSENCE exports and the three merged files |
+| `Resp_forecast_ensemble_final.R` | `data_paths` in `CONFIG`, and the two `saveRDS()` paths near the end |
+
 ---
 
 ## 1. Update the activity levels page first
@@ -68,8 +77,5 @@ range, and the trend for each of the next four weeks. Rerunning a week
 replaces that week's rows. Over a season, this is what lets you check how
 accurate the forecasts were.
 
-**Model settings** live in `Resp_forecast_ensemble_final.R`, not here. This
-script only turns the results into a page.
 
-**Off-season.** Between June and August nothing needs to happen. The page
-keeps showing the last forecast, with its date in the top corner.
+
