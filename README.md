@@ -52,16 +52,16 @@ illness:
 | File | Illness |
 |---|---|
 | `ILI_ed.xlsx` | Flu (influenza-like illness) |
-| `RSV_ed.xlsx` | RSV |
+| `RSV_ed.xlsx` | RSV (RSV like illness)|
 | `CLI_ed.xlsx` | COVID-19 (COVID-like illness) |
 
 Each file needs these columns, spelled exactly as shown:
 
 | Column | What it holds | Needed in |
 |---|---|---|
-| `Date` | The week, written like `05Oct26` (day, three-letter month, two-digit year) | All three |
+| `Date` | The week, written like `05Oct25` (day, three-letter month, two-digit year) | All three |
 | `Data` | Weekly emergency department visits for that illness | All three |
-| `VE` | An extra value used by the flu models | `ILI_ed.xlsx` only |
+| `VE` | An extra value for yearly vaccine effectiveness used by the flu models | `ILI_ed.xlsx` only |
 
 **Wastewater data.** `wasterwater_API.R` downloads this directly from the
 CDC's National Wastewater Surveillance System for the district's sites, so
