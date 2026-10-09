@@ -1,46 +1,10 @@
 
 
 # ============================================================
-# RESPIRATORY DISEASE FORECASTING PIPELINE  v11
-#
-# Inherits all fixes from v2-v9. LSTM removed in v11.
-#
-# v8 change — LSTM: CV-only, no prior fallback.
-#
-#   Previously (v1-v7): if LSTM CV returned zero valid CRPS
-#   rows (due to a date-format mismatch bug fixed in v6),
-#   LSTM entered the ensemble via a conservative prior equal
-#   to the best base-model CRPS. This meant LSTM's BMA weight
-#   was not evidence-based and could not be defended as an
-#   improvement to forecast accuracy.
-#
-#   v8 change: prior fallback removed entirely. LSTM is now
-#   CV-only (Option 1):
-#     - If CV succeeds  -> LSTM enters ensemble with a real
-#       CRPS-derived BMA weight.
-#     - If CV fails     -> LSTM is excluded from the ensemble
-#       and a clear diagnostic message is printed. No prior.
-#
-#   The date-mismatch bug (yearweek vs calendar Date) was fixed
-#   in v6 via row-position matching in cv_lstm(). With that fix
-#   in place, CV should succeed for Influenza and SARS-CoV2.
-#   If it still fails after this fix, the diagnostic message
-#   will tell you exactly how many valid CRPS rows were returned
-#   so the cause can be investigated.
-#
-#   RSV: LSTM remains excluded by design (variance decomposition
-#   showed 0.796 log-unit deviation from ensemble mean).
-#
-# v9 diagnostic fixes:
-#   1. results_all now stores weights_final (models in fc_all only)
-#      as bma_weights, and the full pre-filter weights as
-#      bma_weights_full. Previously bma_weights could include LSTM
-#      via a prior path even when LSTM was not in fc_all, causing
-#      the RF vs LSTM diagnostic to show stale prior weights.
-#   2. LSTM status diagnostic now covers all four possible states:
-#      CV-derived / Excluded (0 rows) / Excluded (rows but not in
-#      ensemble) / In ensemble but CV rows = 0 (prior still active).
-#   3. RF vs LSTM comparison now labels LSTM weight source explicitly.
+# RESPIRATORY DISEASE FORECASTING PIPELINE  
+  # The project directory and folder names are based on Lekshmi's local device.
+  # Please use your own folder names and change these paths, and the two
+  # saveRDS() paths near the end of this script, to match.
 # ============================================================
 
 
@@ -139,15 +103,7 @@ CONFIG <- list(
 
 nan_to_na <- function(x) ifelse(is.nan(x), NA_real_, x)
 
-# FIX A — cap individual model sigma_log values before ensemble combination.
-# Called in run_forecast() on fc_all before build_ensemble().
-# cap_h = cap * h^exp so the ceiling widens with horizon (same philosophy
-# as the ensemble-level cap) but acts on each model's sigma independently,
-# directly reducing within_var = sum(w_i * sigma_i^2).
-# FIX 2+3 (v5): sort by date within model before assigning h so
-# horizon index is always correct regardless of fc_all row order.
-# Use sqrt(h) scaling uniformly (exp=0.50) — RF's internal sigma
-# already uses rf_sigma_exp; this cap is a separate hard ceiling.
+
 cap_model_sigma <- function(fc_tbl, cap) {
   if (is.null(cap)) return(fc_tbl)
   z <- qnorm(0.5 + CONFIG$ci_level / 200)
@@ -183,7 +139,7 @@ cap_model_sigma <- function(fc_tbl, cap) {
 }
 
 # ============================================================
-# 3.  DATA LOADER  (unchanged)
+# 3.  DATA LOADER  
 # ============================================================
 
 load_data <- function(disease) {
@@ -208,12 +164,6 @@ load_data <- function(disease) {
   df <- df %>%
     mutate(
       case          = pmax(as.numeric(case), 0),
-      # ww_signal_log is already log-transformed by the extraction script
-      # (wastewater.R uses log1p(pcr_target_mic_lin) before weighted mean).
-      # However the raw pcr_target_mic_lin values are ~1e-4 to 1e-3, so
-      # log1p(1e-4) ≈ 1e-4 — effectively zero. The extraction script needs
-      # to use log(pcr_target_mic_lin * 1e6) instead. See ww_fix note below.
-      # Pipeline accepts the column as pre-transformed; fix is in wasterwater.R.
       ww_signal_log = as.numeric(ww_signal_log)
     )
   
@@ -242,7 +192,7 @@ load_data <- function(disease) {
 }
 
 # ============================================================
-# 4.  BUILD TSIBBLE  (unchanged)
+# 4.  BUILD TSIBBLE  
 # ============================================================
 
 build_tsibble <- function(df, disease) {
@@ -292,7 +242,7 @@ build_tsibble <- function(df, disease) {
 }
 
 # ============================================================
-# 5.  FABLE MODEL DEFINITIONS  (unchanged)
+# 5.  FABLE MODEL DEFINITIONS 
 # ============================================================
 
 .covar_rhs <- function(has_pm25) {
@@ -324,13 +274,7 @@ fit_base_models <- function(data, disease) {
            )
          ),
          
-         # RSV v7 pool: ARIMA, ARIMAX_WW removed (v3). NAIVE now also removed —
-         # v6 results showed NAIVE entered ensemble at rank 6 (wt_CRPS=0.385)
-         # driven by off-season folds where last-value is hard to beat, but it
-         # adds no skill during RSV season (negative skill in folds 109, 117)
-         # and inflates within-model variance. SNAIVE also removed for same reason.
-         # Remaining pool: ETS, RW, NNETAR(20), STL_ARIMA, STL_ETS.
-         # CV selector picks top 4 from these 5 candidates.
+    
          "RSV" = data %>% model(
            ETS       = ETS(log_case),
            RW        = RW(log_case ~ drift()),
@@ -385,11 +329,8 @@ fit_ww_models_rsv <- function(data) {
 }
 
 # ============================================================
-# NOTE: LSTM removed in v11 — all ensemble members now have
-# CV-derived BMA weights. See pipeline version history.
-# ============================================================
 
-# 6h.  RANDOM FOREST  (unchanged)
+# 6h.  RANDOM FOREST  
 # ============================================================
 
 build_rf_features <- function(ts_data, disease, n_lag = CONFIG$rf$n_lag) {
@@ -446,10 +387,7 @@ forecast_rf <- function(rf_obj, future_data, disease,
   feat_cols  <- rf_obj$feat_cols
   sigma_base <- rf_obj$oob_sigma
   lag_buffer <- rev(tail(rf_obj$feat_df$log_case, n_lag))
-  
-  # FIX B: disease-specific sigma growth exponent.
-  # RSV 0.40 < sqrt (0.50): strong seasonal autocorrelation means errors
-  # compound more slowly than a random walk assumption implies.
+
   sigma_exp <- CONFIG$rf_sigma_exp[[disease]]
   
   fut_tbl <- future_data %>% as_tibble() %>% mutate(date = as.Date(date))
@@ -487,7 +425,7 @@ forecast_rf <- function(rf_obj, future_data, disease,
 }
 
 # ============================================================
-# 7.  CRPS EXTRACTION  (unchanged)
+# 7.  CRPS EXTRACTION  
 # ============================================================
 
 extract_cv_crps <- function(fc, actuals) {
@@ -523,7 +461,7 @@ extract_cv_crps <- function(fc, actuals) {
 }
 
 # ============================================================
-# 8.  BMA WEIGHTS  (unchanged)
+# 8.  BMA WEIGHTS  
 # ============================================================
 
 compute_bma_weights <- function(fold_acc, disease, temperature) {
@@ -616,8 +554,6 @@ recompute_bma_with_aux <- function(fold_acc, aux_names,
 
 # ============================================================
 # 9.  CROSS-VALIDATION
-#     FIX 3: auxiliary fable models (VE / WW) now scored here
-#     alongside base models and RF. LSTM scored via cv_lstm().
 # ============================================================
 
 run_cv <- function(ts_data, disease) {
@@ -801,7 +737,7 @@ run_cv <- function(ts_data, disease) {
 }
 
 # ============================================================
-# 10. EXTRACT FABLE FORECASTS  (unchanged)
+# 10. EXTRACT FABLE FORECASTS 
 # ============================================================
 
 extract_fc <- function(fit_obj, new_data_arg = NULL, ci_level) {
@@ -902,8 +838,6 @@ build_future <- function(ts_data, disease) {
 
 # ============================================================
 # 12. ENSEMBLE  (BMA log-space mixture)
-#     FIX 1: cummax(sigma_mix) applied after sigma_cap so the
-#     full ensemble output is guaranteed to never narrow.
 # ============================================================
 
 build_ensemble <- function(fc_models, weights, ci_level, sigma_cap = NULL) {
@@ -924,14 +858,7 @@ build_ensemble <- function(fc_models, weights, ci_level, sigma_cap = NULL) {
     group_by(date) %>%
     summarise(mu_mix = sum(weight * mu_log), .groups = "drop") %>%
     arrange(date)
-  
-  # Horizon CRPS fix: smooth mu_mix across horizons to prevent
-  # discontinuous jumps between h=1 and h=2 that cause RSV's
-  # Week+2 CRPS spike and COVID's Week+2 dip.
-  # Uses exponential smoothing (alpha=0.7) — recent horizon gets
-  # 70% weight, prior gets 30%. Preserves direction of forecasts
-  # while damping abrupt between-horizon mean shifts.
-  # Only applied when there are exactly 4 horizon steps.
+
   if (nrow(mu_mix_tbl) == 4L) {
     alpha <- 0.70
     mu_smooth <- mu_mix_tbl$mu_mix
@@ -950,8 +877,6 @@ build_ensemble <- function(fc_models, weights, ci_level, sigma_cap = NULL) {
       .groups     = "drop"
     ) %>%
     mutate(sigma_mix = sqrt(within_var + between_var))
-  
-  # FIX C (v5): cummax() first for monotone sigma, then hard per-horizon cap.
   result$sigma_mix <- cummax(result$sigma_mix)
   
   if (!is.null(sigma_cap)) {
@@ -989,11 +914,6 @@ build_ensemble <- function(fc_models, weights, ci_level, sigma_cap = NULL) {
 
 # ============================================================
 # 13. MAIN PIPELINE
-#     FIX 3: aux models (VE / WW) are now CV-scored in run_cv()
-#     so compute_bma_weights() receives real fold CRPS for them.
-#     recompute_bma_with_aux() is only called as a fallback if
-#     the aux CV rows are absent (e.g. all folds errored).
-#     LSTM CV is always run (run_cv = TRUE).
 # ============================================================
 
 run_forecast <- function(disease) {
@@ -1130,10 +1050,7 @@ run_forecast <- function(disease) {
   
   sigma_cap       <- CONFIG$sigma_cap[[disease]]
   sigma_model_cap <- CONFIG$sigma_model_cap[[disease]]
-  
-  # FIX A: cap individual model sigma_log before ensemble combination.
-  # Directly reduces within_var = sum(w_i * sigma_i^2) which v4 diagnosis
-  # confirmed is the primary driver of wide RSV intervals (70-80% of total).
+
   if (!is.null(sigma_model_cap)) {
     message(sprintf("  [%s] Applying per-model sigma cap = %.2f (v5 FIX 1).",
                     disease, sigma_model_cap))
@@ -1192,7 +1109,7 @@ saveRDS(results_all, "~/Data/Essence/results_all_new.rds")
 message("Saved results_all_new.rds")
 
 # ============================================================
-# 16. DIAGNOSTICS  (unchanged + new AR1 phi report)
+# 16. DIAGNOSTICS  
 # ============================================================
 
 cat("\n", strrep("=", 60), "\n")
